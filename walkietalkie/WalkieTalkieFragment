@@ -1,0 +1,379 @@
+package wt.walkietalkie;
+
+import android.app.Fragment;
+import android.app.FragmentManager;
+import android.app.ProgressDialog;
+import android.media.AudioTrack;
+import android.net.wifi.p2p.WifiP2pDevice;
+import android.net.wifi.p2p.WifiP2pInfo;
+import android.net.wifi.p2p.WifiP2pManager.ConnectionInfoListener;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.os.StrictMode;
+import android.os.StrictMode.ThreadPolicy.Builder;
+import android.os.StrictMode.VmPolicy.Builder;
+import android.text.Editable;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
+import java.util.Observable;
+import java.util.Observer;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import wt.control.ButtonListner;
+import wt.control.TalkerButtonOnTouchListner;
+import wt.walkietalkie.manager.FreqManager;
+import wt.walkietalkie.manager.Node;
+import wt.walkietalkie.manager.Node.MessageToObserver;
+import wt.walkietalkie.manager.Node.PacketToObserver;
+import wt.wifidirect.WiFiDirectActivity;
+
+public class WalkieTalkieFragment extends Fragment
+  implements WifiP2pManager.ConnectionInfoListener, Observer
+{
+  private static final int RECORDER_AUDIO_ENCODING = 2;
+  private static final int RECORDER_CHANNELS = 12;
+  private static final int RECORDER_SAMPLERATE = 8000;
+  private AudioTrack audioPlayer = null;
+  private int bufferPlaySize = 0;
+  private Button connectBtn;
+  private Button freqIDButton;
+  private EditText freqIDText;
+  private FreqManager gManager;
+  private boolean isMuted;
+  private boolean isWalkieTalkieEnabled = false;
+  private volatile boolean keepPlaying = true;
+  private View mContentView = null;
+  private String myFreqID;
+  public Node node = null;
+  private AsyncTask<Void, Void, Integer> playTaskThread = null;
+  ProgressDialog progressDialog = null;
+  private Queue<AudioMessage> receivedMessages;
+  private Button talkButton;
+
+  private void addAudioMessage(String paramString, byte[] paramArrayOfByte)
+  {
+    Log.d("Walkie Talkie", "Received&Add audio message !!!! from " + paramString);
+    this.receivedMessages.add(new AudioMessage(paramString, paramArrayOfByte));
+    synchronized (this.receivedMessages)
+    {
+      this.receivedMessages.notify();
+      return;
+    }
+  }
+
+  public void disableTalkButton()
+  {
+    this.talkButton.setEnabled(false);
+    this.talkButton.setBackgroundResource(2130837513);
+  }
+
+  public void disconnectPeers()
+  {
+    ((DeviceListFragment.DeviceActionListener)getActivity()).disconnect();
+    setIsWalkieTalkieEbled(false);
+  }
+
+  public boolean discoverPeers()
+  {
+    ((DeviceListFragment.DeviceActionListener)getActivity()).discoverMyPeers();
+    return true;
+  }
+
+  public void enableTalkButton()
+  {
+    this.talkButton.setEnabled(true);
+    this.talkButton.setBackgroundResource(2130837518);
+  }
+
+  public FreqManager getFreqManager()
+  {
+    return this.gManager;
+  }
+
+  public boolean getIsWalkieTalkieEbled()
+  {
+    return this.isWalkieTalkieEnabled;
+  }
+
+  public String getMyFreqID()
+  {
+    return this.myFreqID;
+  }
+
+  public void onActivityCreated(Bundle paramBundle)
+  {
+    super.onActivityCreated(paramBundle);
+    StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().detectNetwork().penaltyLog().build());
+    StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder().detectLeakedSqlLiteObjects().detectLeakedClosableObjects().penaltyLog().penaltyDeath().build());
+    this.receivedMessages = new ConcurrentLinkedQueue();
+    this.gManager = new FreqManager();
+  }
+
+  public void onConnectionInfoAvailable(WifiP2pInfo paramWifiP2pInfo)
+  {
+    if (paramWifiP2pInfo.groupFormed)
+    {
+      this.gManager.setMyInfo(paramWifiP2pInfo);
+      ((WalkieTalkieFragment)getFragmentManager().findFragmentById(2131230727)).onConnectionInfoAvailable(paramWifiP2pInfo, ((WiFiDirectActivity)getActivity()).getDevice(), this.gManager);
+    }
+  }
+
+  public void onConnectionInfoAvailable(WifiP2pInfo paramWifiP2pInfo, DeviceInfo paramDeviceInfo, FreqManager paramFreqManager)
+  {
+    if (paramWifiP2pInfo.groupFormed)
+    {
+      Log.d("Walkie Talkie", "on Connection Info Available!!");
+      if (this.node == null)
+      {
+        this.node = new Node();
+        this.node.addObserver(this);
+      }
+      this.node.setNode(paramFreqManager, paramDeviceInfo.getDevice().deviceName, paramDeviceInfo.getFreqID(), paramWifiP2pInfo);
+      this.node.startRun();
+      this.keepPlaying = true;
+      this.playTaskThread = new playAudioTask(null);
+      this.playTaskThread.execute(new Void[0]);
+      enableTalkButton();
+    }
+  }
+
+  public View onCreateView(LayoutInflater paramLayoutInflater, ViewGroup paramViewGroup, Bundle paramBundle)
+  {
+    this.mContentView = paramLayoutInflater.inflate(2130903046, null);
+    ButtonListner localButtonListner = new ButtonListner(getActivity());
+    this.connectBtn = ((Button)this.mContentView.findViewById(2131230721));
+    this.connectBtn.setOnClickListener(localButtonListner);
+    TalkerButtonOnTouchListner localTalkerButtonOnTouchListner = new TalkerButtonOnTouchListner(getActivity());
+    this.talkButton = ((Button)this.mContentView.findViewById(2131230723));
+    this.talkButton.setOnTouchListener(localTalkerButtonOnTouchListner);
+    disableTalkButton();
+    return this.mContentView;
+  }
+
+  public void resetWalkieTalkie()
+  {
+    Log.d("Walkie Talkie", "reset WalkieTalkie!!");
+    this.keepPlaying = false;
+    setIsWalkieTalkieEbled(false);
+    if (this.audioPlayer != null)
+      this.audioPlayer.stop();
+    if (this.playTaskThread != null)
+      this.playTaskThread.cancel(true);
+    if (this.node != null)
+      this.node.stopRun();
+  }
+
+  public void sendMsg(int paramInt1, int paramInt2, byte[] paramArrayOfByte)
+  {
+    this.node.sendMsg(paramInt1, paramInt2, paramArrayOfByte);
+    Log.d("Walkie Talkie", "Send audio message: initFlg:" + paramInt1 + " seq:" + paramInt2);
+  }
+
+  public void setIsWalkieTalkieEbled(boolean paramBoolean)
+  {
+    this.isWalkieTalkieEnabled = paramBoolean;
+    if (!paramBoolean)
+    {
+      this.connectBtn.setBackgroundResource(2130837504);
+      disableTalkButton();
+      return;
+    }
+    this.connectBtn.setBackgroundResource(2130837506);
+    this.myFreqID = "1234";
+    enableTalkButton();
+  }
+
+  public void setMyFreqID()
+  {
+    Log.d("Walkie Talkie", "My freqID:" + this.freqIDText.getText().toString());
+    this.myFreqID = "1234";
+    this.node.setFreqID(this.myFreqID);
+  }
+
+  public void startPlay()
+  {
+    this.isMuted = false;
+  }
+
+  public void stopPlay()
+  {
+    this.isMuted = true;
+  }
+
+  public void update(Observable paramObservable, Object paramObject)
+  {
+    Node.MessageToObserver localMessageToObserver = (Node.MessageToObserver)paramObject;
+    switch (localMessageToObserver.getMessageType())
+    {
+    default:
+      return;
+    case 7:
+    }
+    addAudioMessage(((Node.PacketToObserver)localMessageToObserver).getTalkerName(), (byte[])localMessageToObserver.getContainedData());
+  }
+
+  private class AudioMessage
+  {
+    private byte[] data;
+    private String talker;
+
+    public AudioMessage(String paramArrayOfByte, byte[] arg3)
+    {
+      this.talker = paramArrayOfByte;
+      Object localObject;
+      this.data = localObject;
+    }
+  }
+
+  private class playAudioTask extends AsyncTask<Void, Void, Integer>
+  {
+    int playReturn;
+
+    private playAudioTask()
+    {
+    }
+
+    // ERROR //
+    protected Integer doInBackground(Void[] paramArrayOfVoid)
+    {
+      // Byte code:
+      //   0: aload_0
+      //   1: getfield 13	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:this$0	Lwt/walkietalkie/WalkieTalkieFragment;
+      //   4: invokestatic 29	wt/walkietalkie/WalkieTalkieFragment:access$4	(Lwt/walkietalkie/WalkieTalkieFragment;)Z
+      //   7: ifne +8 -> 15
+      //   10: iconst_1
+      //   11: invokestatic 35	java/lang/Integer:valueOf	(I)Ljava/lang/Integer;
+      //   14: areturn
+      //   15: aload_0
+      //   16: getfield 13	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:this$0	Lwt/walkietalkie/WalkieTalkieFragment;
+      //   19: invokestatic 39	wt/walkietalkie/WalkieTalkieFragment:access$5	(Lwt/walkietalkie/WalkieTalkieFragment;)Ljava/util/Queue;
+      //   22: astore_3
+      //   23: aload_3
+      //   24: monitorenter
+      //   25: aload_0
+      //   26: getfield 13	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:this$0	Lwt/walkietalkie/WalkieTalkieFragment;
+      //   29: invokestatic 39	wt/walkietalkie/WalkieTalkieFragment:access$5	(Lwt/walkietalkie/WalkieTalkieFragment;)Ljava/util/Queue;
+      //   32: invokeinterface 45 1 0
+      //   37: ifne +108 -> 145
+      //   40: aload_3
+      //   41: monitorexit
+      //   42: aload_0
+      //   43: getfield 13	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:this$0	Lwt/walkietalkie/WalkieTalkieFragment;
+      //   46: invokestatic 39	wt/walkietalkie/WalkieTalkieFragment:access$5	(Lwt/walkietalkie/WalkieTalkieFragment;)Ljava/util/Queue;
+      //   49: invokeinterface 49 1 0
+      //   54: checkcast 51	wt/walkietalkie/WalkieTalkieFragment$AudioMessage
+      //   57: astore 5
+      //   59: ldc 53
+      //   61: ldc 55
+      //   63: invokestatic 61	android/util/Log:d	(Ljava/lang/String;Ljava/lang/String;)I
+      //   66: pop
+      //   67: aload 5
+      //   69: ifnull -69 -> 0
+      //   72: aload_0
+      //   73: getfield 13	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:this$0	Lwt/walkietalkie/WalkieTalkieFragment;
+      //   76: invokestatic 64	wt/walkietalkie/WalkieTalkieFragment:access$6	(Lwt/walkietalkie/WalkieTalkieFragment;)Z
+      //   79: ifne -79 -> 0
+      //   82: aload 5
+      //   84: invokestatic 68	wt/walkietalkie/WalkieTalkieFragment$AudioMessage:access$0	(Lwt/walkietalkie/WalkieTalkieFragment$AudioMessage;)[B
+      //   87: arraylength
+      //   88: iconst_3
+      //   89: if_icmpne +76 -> 165
+      //   92: ldc 53
+      //   94: ldc 70
+      //   96: invokestatic 61	android/util/Log:d	(Ljava/lang/String;Ljava/lang/String;)I
+      //   99: pop
+      //   100: new 72	java/lang/String
+      //   103: dup
+      //   104: aload 5
+      //   106: invokestatic 68	wt/walkietalkie/WalkieTalkieFragment$AudioMessage:access$0	(Lwt/walkietalkie/WalkieTalkieFragment$AudioMessage;)[B
+      //   109: invokespecial 75	java/lang/String:<init>	([B)V
+      //   112: ldc 77
+      //   114: invokevirtual 81	java/lang/String:compareToIgnoreCase	(Ljava/lang/String;)I
+      //   117: ifne -117 -> 0
+      //   120: aload_0
+      //   121: getfield 13	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:this$0	Lwt/walkietalkie/WalkieTalkieFragment;
+      //   124: invokestatic 85	wt/walkietalkie/WalkieTalkieFragment:access$3	(Lwt/walkietalkie/WalkieTalkieFragment;)Landroid/media/AudioTrack;
+      //   127: invokevirtual 90	android/media/AudioTrack:stop	()V
+      //   130: ldc 53
+      //   132: ldc 92
+      //   134: invokestatic 61	android/util/Log:d	(Ljava/lang/String;Ljava/lang/String;)I
+      //   137: pop
+      //   138: goto -138 -> 0
+      //   141: astore_2
+      //   142: goto -142 -> 0
+      //   145: aload_0
+      //   146: getfield 13	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:this$0	Lwt/walkietalkie/WalkieTalkieFragment;
+      //   149: invokestatic 39	wt/walkietalkie/WalkieTalkieFragment:access$5	(Lwt/walkietalkie/WalkieTalkieFragment;)Ljava/util/Queue;
+      //   152: invokevirtual 97	java/lang/Object:wait	()V
+      //   155: goto -130 -> 25
+      //   158: astore 4
+      //   160: aload_3
+      //   161: monitorexit
+      //   162: aload 4
+      //   164: athrow
+      //   165: aload_0
+      //   166: aload_0
+      //   167: getfield 13	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:this$0	Lwt/walkietalkie/WalkieTalkieFragment;
+      //   170: invokestatic 85	wt/walkietalkie/WalkieTalkieFragment:access$3	(Lwt/walkietalkie/WalkieTalkieFragment;)Landroid/media/AudioTrack;
+      //   173: aload 5
+      //   175: invokestatic 68	wt/walkietalkie/WalkieTalkieFragment$AudioMessage:access$0	(Lwt/walkietalkie/WalkieTalkieFragment$AudioMessage;)[B
+      //   178: iconst_0
+      //   179: aload 5
+      //   181: invokestatic 68	wt/walkietalkie/WalkieTalkieFragment$AudioMessage:access$0	(Lwt/walkietalkie/WalkieTalkieFragment$AudioMessage;)[B
+      //   184: arraylength
+      //   185: invokevirtual 101	android/media/AudioTrack:write	([BII)I
+      //   188: putfield 103	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:playReturn	I
+      //   191: aload_0
+      //   192: getfield 103	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:playReturn	I
+      //   195: bipush 254
+      //   197: if_icmpne +14 -> 211
+      //   200: ldc 53
+      //   202: ldc 105
+      //   204: invokestatic 61	android/util/Log:d	(Ljava/lang/String;Ljava/lang/String;)I
+      //   207: pop
+      //   208: goto -208 -> 0
+      //   211: aload_0
+      //   212: getfield 13	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:this$0	Lwt/walkietalkie/WalkieTalkieFragment;
+      //   215: invokestatic 85	wt/walkietalkie/WalkieTalkieFragment:access$3	(Lwt/walkietalkie/WalkieTalkieFragment;)Landroid/media/AudioTrack;
+      //   218: invokevirtual 109	android/media/AudioTrack:getPlayState	()I
+      //   221: iconst_3
+      //   222: if_icmpeq -222 -> 0
+      //   225: aload_0
+      //   226: getfield 13	wt/walkietalkie/WalkieTalkieFragment$playAudioTask:this$0	Lwt/walkietalkie/WalkieTalkieFragment;
+      //   229: invokestatic 85	wt/walkietalkie/WalkieTalkieFragment:access$3	(Lwt/walkietalkie/WalkieTalkieFragment;)Landroid/media/AudioTrack;
+      //   232: invokevirtual 112	android/media/AudioTrack:play	()V
+      //   235: goto -235 -> 0
+      //
+      // Exception table:
+      //   from	to	target	type
+      //   15	25	141	java/lang/InterruptedException
+      //   42	67	141	java/lang/InterruptedException
+      //   72	138	141	java/lang/InterruptedException
+      //   162	165	141	java/lang/InterruptedException
+      //   165	208	141	java/lang/InterruptedException
+      //   211	235	141	java/lang/InterruptedException
+      //   25	42	158	finally
+      //   145	155	158	finally
+      //   160	162	158	finally
+    }
+
+    protected void onPreExecute()
+    {
+      WalkieTalkieFragment.this.bufferPlaySize = AudioTrack.getMinBufferSize(8000, 12, 2);
+      WalkieTalkieFragment.this.audioPlayer = new AudioTrack(3, 8000, 12, 2, WalkieTalkieFragment.this.bufferPlaySize, 1);
+      float f = (float)(0.8D * AudioTrack.getMaxVolume());
+      WalkieTalkieFragment.this.audioPlayer.setStereoVolume(f, f);
+      if (WalkieTalkieFragment.this.audioPlayer.getPlayState() != 3)
+        WalkieTalkieFragment.this.audioPlayer.play();
+    }
+  }
+}
+
+/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
+ * Qualified Name:     wt.walkietalkie.WalkieTalkieFragment
+ * JD-Core Version:    0.6.0
+ */
