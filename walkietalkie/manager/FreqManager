@@ -1,0 +1,83 @@
+package wt.walkietalkie.manager;
+
+import android.net.wifi.p2p.WifiP2pDevice;
+import android.net.wifi.p2p.WifiP2pInfo;
+import android.util.Log;
+import java.util.HashMap;
+import java.util.Observable;
+import wt.model.ObjToObserver;
+import wt.walkietalkie.DeviceInfo;
+
+public class FreqManager extends Observable
+{
+  private HashMap<String, DeviceInfo> devices = new HashMap();
+  private WifiP2pInfo info;
+  private boolean isGroupOwner;
+
+  public boolean addDevices(DeviceInfo paramDeviceInfo)
+  {
+    if ((DeviceInfo)this.devices.get(paramDeviceInfo.getDevice().deviceName) == null)
+    {
+      Log.d("Group Manager", "add peer");
+      synchronized (this.devices)
+      {
+        this.devices.put(paramDeviceInfo.getDevice().deviceName, paramDeviceInfo);
+        setChanged();
+        notifyObservers(new ObjToObserver(paramDeviceInfo, 1));
+        return true;
+      }
+    }
+    updateDevices(paramDeviceInfo);
+    return false;
+  }
+
+  public boolean removeAllDecives()
+  {
+    this.devices.clear();
+    setChanged();
+    notifyObservers(new ObjToObserver(null, 4));
+    return false;
+  }
+
+  public void setMyInfo(WifiP2pInfo paramWifiP2pInfo)
+  {
+    this.isGroupOwner = paramWifiP2pInfo.isGroupOwner;
+    this.info = paramWifiP2pInfo;
+    Log.d("Group Manager", "is Group Owner:" + this.isGroupOwner);
+  }
+
+  public void stopCommunication()
+  {
+  }
+
+  public void updateDeviceFreqID(String paramString1, String paramString2)
+  {
+    DeviceInfo localDeviceInfo = (DeviceInfo)this.devices.get(paramString1);
+    Log.d("Group Manager", "update peer freqID:" + paramString1 + ", freqID" + paramString2);
+    if (localDeviceInfo != null)
+    {
+      localDeviceInfo.setFreqID(paramString2);
+      setChanged();
+      notifyObservers(new ObjToObserver(localDeviceInfo, 3));
+    }
+  }
+
+  public void updateDevices(DeviceInfo paramDeviceInfo)
+  {
+    DeviceInfo localDeviceInfo = (DeviceInfo)this.devices.get(paramDeviceInfo.getDevice().deviceName);
+    Log.d("Group Manager", "update peer");
+    if (localDeviceInfo != null)
+    {
+      localDeviceInfo.setDevice(paramDeviceInfo.getDevice());
+      if (!paramDeviceInfo.getFreqID().equals("NA"))
+        localDeviceInfo.setFreqID(paramDeviceInfo.getFreqID());
+      setChanged();
+      notifyObservers(new ObjToObserver(localDeviceInfo, 2));
+    }
+  }
+}
+
+/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
+ * Qualified Name:     wt.walkietalkie.manager.FreqManager
+ * JD-Core Version:    0.6.0
+ */
