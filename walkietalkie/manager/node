@@ -251,7 +251,3 @@ public class Node extends Observable
   }
 }
 
-/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
- * Qualified Name:     wt.walkietalkie.manager.Node
- * JD-Core Version:    0.6.0
- */
