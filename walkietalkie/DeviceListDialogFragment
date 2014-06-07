@@ -43,7 +43,3 @@ public class DeviceListDialogFragment extends DialogFragment
   }
 }
 
-/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
- * Qualified Name:     wt.walkietalkie.DeviceListDialogFragment
- * JD-Core Version:    0.6.0
- */
