@@ -1,0 +1,50 @@
+package wt.socket;
+
+public class IPSeq
+{
+  private int initFlg;
+  private String peerIP;
+  private int seqNum;
+
+  public IPSeq(String paramString, int paramInt1, int paramInt2)
+  {
+    this.initFlg = paramInt1;
+    this.peerIP = paramString;
+    this.seqNum = paramInt2;
+  }
+
+  public String getIP()
+  {
+    return this.peerIP;
+  }
+
+  public int getInitFlg()
+  {
+    return this.initFlg;
+  }
+
+  public int getSeq()
+  {
+    return this.seqNum;
+  }
+
+  public void setIP(String paramString)
+  {
+    this.peerIP = paramString;
+  }
+
+  public void setInitFlg(int paramInt)
+  {
+    this.initFlg = paramInt;
+  }
+
+  public void setSeq(int paramInt)
+  {
+    this.seqNum = paramInt;
+  }
+}
+
+/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
+ * Qualified Name:     wt.socket.IPSeq
+ * JD-Core Version:    0.6.0
+ */
