@@ -77,7 +77,3 @@ public class FreqManager extends Observable
   }
 }
 
-/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
- * Qualified Name:     wt.walkietalkie.manager.FreqManager
- * JD-Core Version:    0.6.0
- */
