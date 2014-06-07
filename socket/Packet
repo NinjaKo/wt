@@ -1,0 +1,45 @@
+package wt.socket;
+
+import java.io.Serializable;
+
+public class Packet
+  implements Serializable
+{
+  private static final long serialVersionUID = 1L;
+  private String msg;
+  private String talker;
+  private int type;
+
+  public Packet(int paramInt, String paramString1, String paramString2)
+  {
+    this.type = paramInt;
+    this.msg = paramString2;
+    this.talker = paramString1;
+  }
+
+  public String getMsg()
+  {
+    return this.msg;
+  }
+
+  public String getTalker()
+  {
+    return this.talker;
+  }
+
+  public int getType()
+  {
+    return this.type;
+  }
+
+  public static abstract interface PacketConst
+  {
+    public static final int BEACON_ADDR = 2;
+    public static final int BEACON_FREQID = 1;
+  }
+}
+
+/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
+ * Qualified Name:     wt.socket.Packet
+ * JD-Core Version:    0.6.0
+ */
