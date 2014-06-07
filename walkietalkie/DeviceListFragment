@@ -1,0 +1,231 @@
+package wt.walkietalkie;
+
+import android.app.Activity;
+import android.app.FragmentManager;
+import android.app.ListFragment;
+import android.app.ProgressDialog;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.DialogInterface.OnCancelListener;
+import android.net.wifi.p2p.WifiP2pConfig;
+import android.net.wifi.p2p.WifiP2pDevice;
+import android.net.wifi.p2p.WifiP2pDeviceList;
+import android.net.wifi.p2p.WifiP2pManager.PeerListListener;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
+import android.widget.ListAdapter;
+import android.widget.ListView;
+import android.widget.TextView;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
+import wt.model.ObjToObserver;
+import wt.walkietalkie.manager.FreqManager;
+import wt.wifidirect.WiFiDirectActivity;
+
+public class DeviceListFragment extends ListFragment
+  implements WifiP2pManager.PeerListListener, Observer
+{
+  private DeviceInfoListAdapter dinfoAdap;
+  private Handler freqIDReceive;
+  View mContentView = null;
+  private DeviceInfo mydevice = null;
+  private List<DeviceInfo> peers_new = new ArrayList();
+  ProgressDialog progressDialog = null;
+
+  private void connectPeer(WifiP2pDevice paramWifiP2pDevice)
+  {
+    ((WalkieTalkieFragment)getActivity().getFragmentManager().findFragmentById(2131230727));
+    WifiP2pConfig localWifiP2pConfig = new WifiP2pConfig();
+    localWifiP2pConfig.deviceAddress = paramWifiP2pDevice.deviceAddress;
+    localWifiP2pConfig.wps.setup = 0;
+    if (paramWifiP2pDevice.status == 3)
+      ((DeviceActionListener)getActivity()).connect(localWifiP2pConfig);
+  }
+
+  private static String getDeviceStatus(int paramInt)
+  {
+    Log.d("wifidirectdemo", "Peer status :" + paramInt);
+    switch (paramInt)
+    {
+    default:
+      return "Unknown";
+    case 3:
+      return "Available";
+    case 1:
+      return "Invited";
+    case 0:
+      return "Connected";
+    case 2:
+      return "Failed";
+    case 4:
+    }
+    return "Unavailable";
+  }
+
+  public void clearPeers()
+  {
+    ((WalkieTalkieFragment)getActivity().getFragmentManager().findFragmentById(2131230727)).getFreqManager().removeAllDecives();
+  }
+
+  public DeviceInfo getDeviceInfo()
+  {
+    return this.mydevice;
+  }
+
+  public void onActivityCreated(Bundle paramBundle)
+  {
+    super.onActivityCreated(paramBundle);
+    this.dinfoAdap = new DeviceInfoListAdapter(getActivity(), 2130903045, this.peers_new);
+    setListAdapter(this.dinfoAdap);
+    ((WalkieTalkieFragment)getFragmentManager().findFragmentById(2131230727)).getFreqManager().addObserver(this);
+    this.freqIDReceive = new Handler()
+    {
+      public void handleMessage(Message paramMessage)
+      {
+        DeviceListFragment.this.dinfoAdap.notifyDataSetChanged();
+      }
+    };
+  }
+
+  public View onCreateView(LayoutInflater paramLayoutInflater, ViewGroup paramViewGroup, Bundle paramBundle)
+  {
+    this.mContentView = paramLayoutInflater.inflate(2130903042, null);
+    return this.mContentView;
+  }
+
+  public void onInitiateDiscovery()
+  {
+    if ((this.progressDialog != null) && (this.progressDialog.isShowing()))
+      this.progressDialog.dismiss();
+    this.progressDialog = ProgressDialog.show(getActivity(), "Press back to cancel", "finding peers", true, true, new DialogInterface.OnCancelListener()
+    {
+      public void onCancel(DialogInterface paramDialogInterface)
+      {
+      }
+    });
+  }
+
+  public void onListItemClick(ListView paramListView, View paramView, int paramInt, long paramLong)
+  {
+    connectPeer(((DeviceInfo)getListAdapter().getItem(paramInt)).getDevice());
+  }
+
+  public void onPeersAvailable(WifiP2pDeviceList paramWifiP2pDeviceList)
+  {
+    if (paramWifiP2pDeviceList.getDeviceList().isEmpty())
+      Log.d("wifidirectdemo", "No devices found");
+    while (true)
+    {
+      return;
+      Iterator localIterator = paramWifiP2pDeviceList.getDeviceList().iterator();
+      while (localIterator.hasNext())
+      {
+        WifiP2pDevice localWifiP2pDevice = (WifiP2pDevice)localIterator.next();
+        System.out.println(localWifiP2pDevice);
+        ((WalkieTalkieFragment)getActivity().getFragmentManager().findFragmentById(2131230727)).getFreqManager().addDevices(new DeviceInfo(localWifiP2pDevice, "NA"));
+      }
+    }
+  }
+
+  public void onResume()
+  {
+    super.onResume();
+    this.mydevice = ((WiFiDirectActivity)getActivity()).getDevice();
+    updateThisDevice(this.mydevice);
+  }
+
+  public void update(Observable paramObservable, Object paramObject)
+  {
+    ObjToObserver localObjToObserver = (ObjToObserver)paramObject;
+    switch (localObjToObserver.getMessageType())
+    {
+    default:
+      return;
+    case 2:
+      connectPeer(((DeviceInfo)localObjToObserver.getContainedData()).getDevice());
+      this.dinfoAdap.notifyDataSetChanged();
+      return;
+    case 3:
+      this.freqIDReceive.sendEmptyMessage(0);
+      return;
+    case 1:
+      DeviceInfo localDeviceInfo = (DeviceInfo)localObjToObserver.getContainedData();
+      this.dinfoAdap.add(localDeviceInfo);
+      this.dinfoAdap.notifyDataSetChanged();
+      return;
+    case 4:
+    }
+    this.dinfoAdap.clear();
+    this.dinfoAdap.notifyDataSetChanged();
+  }
+
+  public void updateThisDevice(DeviceInfo paramDeviceInfo)
+  {
+    if (paramDeviceInfo == null)
+      return;
+    this.mydevice = paramDeviceInfo;
+    ((TextView)this.mContentView.findViewById(2131230731)).setText(this.mydevice.getDevice().deviceName);
+    ((TextView)this.mContentView.findViewById(2131230732)).setText(getDeviceStatus(this.mydevice.getDevice().status));
+    ((TextView)this.mContentView.findViewById(2131230733)).setText(this.mydevice.getDevice().deviceAddress);
+  }
+
+  public static abstract interface DeviceActionListener
+  {
+    public abstract void cancelConnect();
+
+    public abstract void cancelDisconnect();
+
+    public abstract void connect(WifiP2pConfig paramWifiP2pConfig);
+
+    public abstract void disconnect();
+
+    public abstract boolean discoverMyPeers();
+
+    public abstract void showDetails(WifiP2pDevice paramWifiP2pDevice);
+  }
+
+  private class DeviceInfoListAdapter extends ArrayAdapter<DeviceInfo>
+  {
+    private List<DeviceInfo> items;
+
+    public DeviceInfoListAdapter(int paramList, List<DeviceInfo> arg3)
+    {
+      super(i, localList);
+      this.items = localList;
+    }
+
+    public View getView(int paramInt, View paramView, ViewGroup paramViewGroup)
+    {
+      View localView = paramView;
+      if (localView == null)
+        localView = ((LayoutInflater)DeviceListFragment.this.getActivity().getSystemService("layout_inflater")).inflate(2130903045, null);
+      DeviceInfo localDeviceInfo = (DeviceInfo)this.items.get(paramInt);
+      if (localDeviceInfo != null)
+      {
+        TextView localTextView1 = (TextView)localView.findViewById(2131230734);
+        TextView localTextView2 = (TextView)localView.findViewById(2131230735);
+        if (localTextView1 != null)
+          localTextView1.setText(localDeviceInfo.getDevice().deviceName + ", FreqID:" + localDeviceInfo.getFreqID());
+        if (localTextView2 != null)
+          localTextView2.setText(DeviceListFragment.access$0(localDeviceInfo.getDevice().status));
+      }
+      return localView;
+    }
+  }
+}
+
+/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
+ * Qualified Name:     wt.walkietalkie.DeviceListFragment
+ * JD-Core Version:    0.6.0
+ */
