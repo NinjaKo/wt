@@ -37,8 +37,3 @@ public class DeviceInfo
     this.freqID = paramString;
   }
 }
-
-/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
- * Qualified Name:     wt.walkietalkie.DeviceInfo
- * JD-Core Version:    0.6.0
- */
