@@ -1,0 +1,48 @@
+package wt.walkietalkie;
+
+import android.app.Activity;
+import android.app.AlertDialog.Builder;
+import android.app.Dialog;
+import android.app.DialogFragment;
+import android.content.DialogInterface;
+import android.content.DialogInterface.OnClickListener;
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.TextView;
+
+public class WifiP2pSettingsDialogFragment extends DialogFragment
+{
+  public static WifiP2pSettingsDialogFragment newInstance(int paramInt)
+  {
+    WifiP2pSettingsDialogFragment localWifiP2pSettingsDialogFragment = new WifiP2pSettingsDialogFragment();
+    Bundle localBundle = new Bundle();
+    localBundle.putInt("title", paramInt);
+    localWifiP2pSettingsDialogFragment.setArguments(localBundle);
+    return localWifiP2pSettingsDialogFragment;
+  }
+
+  public Dialog onCreateDialog(Bundle paramBundle)
+  {
+    int i = getArguments().getInt("title");
+    TextView localTextView = new TextView(getActivity());
+    localTextView.setText(2131099668);
+    localTextView.setTextSize(20.0F);
+    return new AlertDialog.Builder(getActivity()).setTitle(i).setView(localTextView).setPositiveButton(2131099665, new DialogInterface.OnClickListener()
+    {
+      public void onClick(DialogInterface paramDialogInterface, int paramInt)
+      {
+        WifiP2pSettingsDialogFragment.this.getActivity().startActivity(new Intent("android.settings.WIRELESS_SETTINGS"));
+      }
+    }).setNegativeButton(2131099666, new DialogInterface.OnClickListener()
+    {
+      public void onClick(DialogInterface paramDialogInterface, int paramInt)
+      {
+      }
+    }).create();
+  }
+}
+
+/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
+ * Qualified Name:     wt.walkietalkie.WifiP2pSettingsDialogFragment
+ * JD-Core Version:    0.6.0
+ */
