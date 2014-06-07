@@ -1,0 +1,257 @@
+package wt.walkietalkie.manager;
+
+import android.net.wifi.p2p.WifiP2pInfo;
+import android.util.Log;
+import java.net.InetAddress;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Observable;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import wt.socket.CreateSocket;
+
+public class Node extends Observable
+  implements Runnable
+{
+  private HashMap<String, String> clientFreqIDs;
+  private CreateSocket createSocket;
+  private FreqManager freqManager;
+  private String groupOwnerAddress;
+  private String groupOwnerName;
+  private boolean isGroupOwner = false;
+  private volatile boolean keepRunning = false;
+  private Queue<MessageToObserver> messagesForObservers;
+  private String myFreqID;
+  private String myName;
+  private Thread notifierThread;
+
+  public Node()
+  {
+    Log.d("Node", "create node");
+    this.clientFreqIDs = new HashMap();
+    this.createSocket = new CreateSocket();
+    this.messagesForObservers = new ConcurrentLinkedQueue();
+  }
+
+  private String getMyFreqGroupList(String paramString)
+  {
+    String str1 = "";
+    Collection localCollection = this.clientFreqIDs.values();
+    Set localSet = this.clientFreqIDs.keySet();
+    Iterator localIterator1 = localCollection.iterator();
+    Iterator localIterator2 = localSet.iterator();
+    while (true)
+    {
+      if ((!localIterator1.hasNext()) || (!localIterator2.hasNext()))
+        return str1;
+      String str2 = (String)localIterator1.next();
+      String str3 = (String)localIterator2.next();
+      if (str2.compareTo(str2) != 0)
+        continue;
+      if (str1.length() != 0)
+        str1 = str1 + ",";
+      str1 = str1 + str3;
+    }
+  }
+
+  private void wakeNotifierThread()
+  {
+    synchronized (this.messagesForObservers)
+    {
+      this.messagesForObservers.notify();
+      return;
+    }
+  }
+
+  public boolean addClientFIDs(String paramString1, String paramString2)
+  {
+    if ((String)this.clientFreqIDs.get(paramString1) == null)
+    {
+      Log.d("Node", "new client freq ID:" + paramString2);
+      monitorenter;
+      try
+      {
+        this.clientFreqIDs.put(paramString1, paramString2);
+        monitorexit;
+        this.freqManager.updateDeviceFreqID(paramString1, paramString2);
+        return true;
+      }
+      finally
+      {
+        monitorexit;
+      }
+    }
+    updateClientFIDs(paramString1, paramString2);
+    return false;
+  }
+
+  public void notifyAboutDataReceived(String paramString, byte[] paramArrayOfByte)
+  {
+    this.messagesForObservers.add(new PacketToObserver(paramString, paramArrayOfByte, 7));
+    wakeNotifierThread();
+  }
+
+  // ERROR //
+  public void run()
+  {
+    // Byte code:
+    //   0: aload_0
+    //   1: getfield 34	wt/walkietalkie/manager/Node:keepRunning	Z
+    //   4: ifne +4 -> 8
+    //   7: return
+    //   8: aload_0
+    //   9: getfield 59	wt/walkietalkie/manager/Node:messagesForObservers	Ljava/util/Queue;
+    //   12: astore_2
+    //   13: aload_2
+    //   14: monitorenter
+    //   15: aload_0
+    //   16: getfield 59	wt/walkietalkie/manager/Node:messagesForObservers	Ljava/util/Queue;
+    //   19: invokeinterface 166 1 0
+    //   24: ifne +29 -> 53
+    //   27: aload_2
+    //   28: monitorexit
+    //   29: aload_0
+    //   30: invokevirtual 169	wt/walkietalkie/manager/Node:setChanged	()V
+    //   33: aload_0
+    //   34: aload_0
+    //   35: getfield 59	wt/walkietalkie/manager/Node:messagesForObservers	Ljava/util/Queue;
+    //   38: invokeinterface 172 1 0
+    //   43: invokevirtual 176	wt/walkietalkie/manager/Node:notifyObservers	(Ljava/lang/Object;)V
+    //   46: goto -46 -> 0
+    //   49: astore_1
+    //   50: goto -50 -> 0
+    //   53: aload_0
+    //   54: getfield 59	wt/walkietalkie/manager/Node:messagesForObservers	Ljava/util/Queue;
+    //   57: invokevirtual 179	java/lang/Object:wait	()V
+    //   60: goto -45 -> 15
+    //   63: astore_3
+    //   64: aload_2
+    //   65: monitorexit
+    //   66: aload_3
+    //   67: athrow
+    //
+    // Exception table:
+    //   from	to	target	type
+    //   8	15	49	java/lang/InterruptedException
+    //   29	46	49	java/lang/InterruptedException
+    //   66	68	49	java/lang/InterruptedException
+    //   15	29	63	finally
+    //   53	60	63	finally
+    //   64	66	63	finally
+  }
+
+  public void sendMsg(int paramInt1, int paramInt2, byte[] paramArrayOfByte)
+  {
+    String str1 = getMyFreqGroupList(this.myFreqID);
+    String[] arrayOfString;
+    int i;
+    if (str1.compareTo("") != 0)
+    {
+      arrayOfString = str1.split(",");
+      i = arrayOfString.length;
+    }
+    for (int j = 0; ; j++)
+    {
+      if (j >= i)
+        return;
+      String str2 = arrayOfString[j];
+      Log.d("Node", "send msg to " + str2);
+      this.createSocket.sendMsg(str2, paramInt1, paramInt2, paramArrayOfByte);
+    }
+  }
+
+  public void setFreqID(String paramString)
+  {
+    this.myFreqID = paramString;
+    this.createSocket.setFID(paramString);
+  }
+
+  public void setNode(FreqManager paramFreqManager, String paramString1, String paramString2, WifiP2pInfo paramWifiP2pInfo)
+  {
+    this.freqManager = paramFreqManager;
+    this.isGroupOwner = paramWifiP2pInfo.isGroupOwner;
+    this.myName = paramString1;
+    this.myFreqID = paramString2;
+    this.groupOwnerName = paramWifiP2pInfo.groupOwnerAddress.getHostName();
+    this.groupOwnerAddress = paramWifiP2pInfo.groupOwnerAddress.getHostAddress();
+    this.createSocket.setInfo(this, this.myName, this.myFreqID, this.isGroupOwner, this.groupOwnerName, this.groupOwnerAddress);
+  }
+
+  public void startRun()
+  {
+    if (!this.keepRunning)
+    {
+      this.keepRunning = true;
+      this.createSocket.startRun();
+      this.notifierThread = new Thread(this);
+      this.notifierThread.start();
+    }
+  }
+
+  public void stopRun()
+  {
+    if (this.keepRunning)
+    {
+      this.keepRunning = false;
+      this.createSocket.stopRun();
+      this.notifierThread.interrupt();
+    }
+  }
+
+  public void updateClientFIDs(String paramString1, String paramString2)
+  {
+    String str = (String)this.clientFreqIDs.get(paramString1);
+    Log.d("Node", "update client group ID:" + paramString1 + ", freqID:" + paramString2);
+    if (str != null)
+    {
+      this.clientFreqIDs.remove(paramString1);
+      this.clientFreqIDs.put(paramString1, paramString2);
+      this.freqManager.updateDeviceFreqID(paramString1, paramString2);
+    }
+  }
+
+  public static abstract interface MessageToObserver
+  {
+    public abstract Object getContainedData();
+
+    public abstract int getMessageType();
+  }
+
+  public class PacketToObserver
+    implements Node.MessageToObserver
+  {
+    private byte[] data;
+    private String talkerName;
+    private int type;
+
+    public PacketToObserver(String paramArrayOfByte, byte[] paramInt, int arg4)
+    {
+      int i;
+      this.type = i;
+      this.data = paramInt;
+      this.talkerName = paramArrayOfByte;
+    }
+
+    public Object getContainedData()
+    {
+      return this.data;
+    }
+
+    public int getMessageType()
+    {
+      return this.type;
+    }
+
+    public String getTalkerName()
+    {
+      return this.talkerName;
+    }
+  }
+}
+
+/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
+ * Qualified Name:     wt.walkietalkie.manager.Node
+ * JD-Core Version:    0.6.0
+ */
