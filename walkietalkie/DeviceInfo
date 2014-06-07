@@ -1,0 +1,44 @@
+package wt.walkietalkie;
+
+import android.net.wifi.p2p.WifiP2pDevice;
+
+public class DeviceInfo
+{
+  private WifiP2pDevice device;
+  private String freqID;
+
+  public DeviceInfo(WifiP2pDevice paramWifiP2pDevice, String paramString)
+  {
+    this.device = paramWifiP2pDevice;
+    this.freqID = paramString;
+  }
+
+  public WifiP2pDevice getDevice()
+  {
+    synchronized (this.device)
+    {
+      WifiP2pDevice localWifiP2pDevice2 = this.device;
+      return localWifiP2pDevice2;
+    }
+  }
+
+  public String getFreqID()
+  {
+    return this.freqID;
+  }
+
+  public void setDevice(WifiP2pDevice paramWifiP2pDevice)
+  {
+    this.device = paramWifiP2pDevice;
+  }
+
+  public void setFreqID(String paramString)
+  {
+    this.freqID = paramString;
+  }
+}
+
+/* Location:           /Users/leewin/Documents/Anti-Compile/classes-dex2jar.jar
+ * Qualified Name:     wt.walkietalkie.DeviceInfo
+ * JD-Core Version:    0.6.0
+ */
